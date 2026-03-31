@@ -1,14 +1,65 @@
+// pipeline {
+//     agent any
+
+//     environment {
+//         IMAGE_NAME = "mongo-init-image"
+//     }
+
+//     stages {
+//         stage('Build Docker Image') {
+//             steps {
+//                 sh "docker build -t $IMAGE_NAME:${BUILD_NUMBER} -f mongodb/Dockerfile mongodb/"
+//             }
+//         }
+//     }
+// }
+
+
 pipeline {
     agent any
 
     environment {
         IMAGE_NAME = "mongo-init-image"
+        DOCKERHUB_USERNAME = "veenay910"
     }
 
     stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t $IMAGE_NAME:${BUILD_NUMBER} -f mongodb/Dockerfile mongodb/"
+                sh "docker build -t $IMAGE_NAME:${BUILD_NUMBER} mongodb/"
+            }
+        }
+
+        stage('Login to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker-hub-cred',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh """
+                    echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                    """
+                }
+            }
+        }
+
+        stage('Tag Image') {
+            steps {
+                sh "docker tag $IMAGE_NAME:${BUILD_NUMBER} $DOCKERHUB_USERNAME/$IMAGE_NAME:${BUILD_NUMBER}"
+            }
+        }
+
+        stage('Push Image') {
+            steps {
+                sh "docker push $DOCKERHUB_USERNAME/$IMAGE_NAME:${BUILD_NUMBER}"
             }
         }
     }
