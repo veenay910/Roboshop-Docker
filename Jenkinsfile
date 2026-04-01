@@ -25,57 +25,45 @@ pipeline {
                         env.IMAGE_NAME = "mongo-init-image"
                         env.DOCKERFILE_PATH = "mongodb/Dockerfile"
                         env.BUILD_CONTEXT = "mongodb"
-                    } else if (params.APP_TYPE == 'debug') {
+                    } else {
                         env.IMAGE_NAME = "debug-image"
                         env.DOCKERFILE_PATH = "debug/Dockerfile"
                         env.BUILD_CONTEXT = "debug"
                     }
+
+                    env.FULL_IMAGE_NAME = "${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
+
+                    echo "Building: ${FULL_IMAGE_NAME}"
                 }
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Build Image') {
             steps {
-                sh """
-                docker build -t $IMAGE_NAME:${BUILD_NUMBER} -f $DOCKERFILE_PATH $BUILD_CONTEXT
-                """
-            }
-        }
-
-        stage('Login to Docker Hub') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'docker',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    sh "echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin"
-                }
-            }
-        }
-
-        stage('Tag Image') {
-            steps {
-                sh """
-                docker tag $IMAGE_NAME:${BUILD_NUMBER} $DOCKERHUB_USERNAME/$IMAGE_NAME:${BUILD_NUMBER}
-                """
+                sh "docker build -t ${FULL_IMAGE_NAME}:${BUILD_NUMBER} -f ${DOCKERFILE_PATH} ${BUILD_CONTEXT}"
             }
         }
 
         stage('Push Image') {
             steps {
-                sh """
-                docker push $DOCKERHUB_USERNAME/$IMAGE_NAME:${BUILD_NUMBER}
-                """
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker',
+                    usernameVariable: 'USER',
+                    passwordVariable: 'PASS'
+                )]) {
+                    sh "echo $PASS | docker login -u $USER --password-stdin"
+                }
+
+                sh "docker push ${FULL_IMAGE_NAME}:${BUILD_NUMBER}"
             }
         }
 
         stage('Run Container') {
             steps {
                 sh """
-                docker stop $CONTAINER_NAME || true
-                docker rm $CONTAINER_NAME || true
-                docker run -d --name $CONTAINER_NAME $IMAGE_NAME:${BUILD_NUMBER}
+                docker stop ${CONTAINER_NAME} || true
+                docker rm ${CONTAINER_NAME} || true
+                docker run -d --name ${CONTAINER_NAME} ${FULL_IMAGE_NAME}:${BUILD_NUMBER}
                 """
             }
         }
