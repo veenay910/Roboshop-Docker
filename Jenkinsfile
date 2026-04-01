@@ -12,6 +12,12 @@ pipeline {
 
     stages {
 
+        stage('Clean Workspace') {
+            steps {
+                deleteDir()
+            }
+        }
+
         stage('Checkout') {
             steps {
                 checkout scm
@@ -33,39 +39,18 @@ pipeline {
 
                     env.FULL_IMAGE_NAME = "${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
 
-                    echo "Building: ${FULL_IMAGE_NAME}"
+                    echo "Selected: ${IMAGE_NAME}"
                 }
             }
         }
 
-        stage('Build Image') {
-            steps {
-                sh "docker build -t ${FULL_IMAGE_NAME}:${BUILD_NUMBER} -f ${DOCKERFILE_PATH} ${BUILD_CONTEXT}"
-            }
-        }
-
-        stage('Push Image') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'docker',
-                    usernameVariable: 'USER',
-                    passwordVariable: 'PASS'
-                )]) {
-                    sh "echo $PASS | docker login -u $USER --password-stdin"
-                }
-
-                sh "docker push ${FULL_IMAGE_NAME}:${BUILD_NUMBER}"
-            }
-        }
-
-        stage('Run Container') {
+        stage('Build') {
             steps {
                 sh """
-                docker stop ${CONTAINER_NAME} || true
-                docker rm ${CONTAINER_NAME} || true
-                docker run -d --name ${CONTAINER_NAME} ${FULL_IMAGE_NAME}:${BUILD_NUMBER}
+                docker build --no-cache -t ${FULL_IMAGE_NAME}:${BUILD_NUMBER} -f ${DOCKERFILE_PATH} ${BUILD_CONTEXT}
                 """
             }
         }
+
     }
 }
