@@ -77,8 +77,18 @@ pipeline {
 
         stage('Push Image') {
             steps {
+                sh "docker push ${FULL_IMAGE_NAME}:${BUILD_NUMBER}"
+            }
+        }
+
+        stage('Run Container') {
+            steps {
                 sh """
-                docker push ${FULL_IMAGE_NAME}:${BUILD_NUMBER}
+                docker stop ${CONTAINER_NAME} || true
+                docker rm ${CONTAINER_NAME} || true
+
+                docker run -d --name ${CONTAINER_NAME} \
+                ${FULL_IMAGE_NAME}:${BUILD_NUMBER}
                 """
             }
         }
