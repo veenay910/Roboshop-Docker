@@ -39,15 +39,40 @@ pipeline {
 
                     env.FULL_IMAGE_NAME = "${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
 
-                    echo "Selected: ${IMAGE_NAME}"
+                    echo "APP_TYPE: ${params.APP_TYPE}"
+                    echo "IMAGE_NAME: ${IMAGE_NAME}"
+                    echo "DOCKERFILE: ${DOCKERFILE_PATH}"
                 }
             }
         }
 
-        stage('Build') {
+        stage('Build Docker Image') {
             steps {
                 sh """
-                docker build --no-cache -t ${FULL_IMAGE_NAME}:${BUILD_NUMBER} -f ${DOCKERFILE_PATH} ${BUILD_CONTEXT}
+                docker build --no-cache \
+                -t ${FULL_IMAGE_NAME}:${BUILD_NUMBER} \
+                -f ${DOCKERFILE_PATH} \
+                ${BUILD_CONTEXT}
+                """
+            }
+        }
+
+        stage('Login to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker',
+                    usernameVariable: 'USER',
+                    passwordVariable: 'PASS'
+                )]) {
+                    sh "echo $PASS | docker login -u $USER --password-stdin"
+                }
+            }
+        }
+
+        stage('Push Image') {
+            steps {
+                sh """
+                docker push ${FULL_IMAGE_NAME}:${BUILD_NUMBER}
                 """
             }
         }
