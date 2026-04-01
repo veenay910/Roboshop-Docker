@@ -1,22 +1,13 @@
 pipeline {
     agent any
 
-    parameters {
-        choice(name: 'APP_TYPE', choices: ['mongodb', 'debug'], description: 'Select application type')
-    }
-
     environment {
         DOCKERHUB_USERNAME = "veenay910"
-        CONTAINER_NAME = "app-container"
+        DOCKERHUB_CREDENTIALS = "dockerhub-creds"  // Jenkins credentials ID
+        IMAGE_TAG = "latest"
     }
 
     stages {
-
-        stage('Clean Workspace') {
-            steps {
-                deleteDir()
-            }
-        }
 
         stage('Checkout') {
             steps {
@@ -24,74 +15,77 @@ pipeline {
             }
         }
 
-        stage('Set Variables') {
+        stage('Detect Changes') {
             steps {
                 script {
-                    if (params.APP_TYPE == 'mongodb') {
-                        env.IMAGE_NAME = "mongo-init-image"
-                        env.DOCKERFILE_PATH = "mongodb/Dockerfile"
-                        env.BUILD_CONTEXT = "mongodb"
-                    } else {
-                        env.IMAGE_NAME = "debug-image"
-                        env.DOCKERFILE_PATH = "debug/Dockerfile"
-                        env.BUILD_CONTEXT = "debug"
+                    def changes = sh(
+                        script: "git diff --name-only ${env.GIT_PREVIOUS_SUCCESSFUL_COMMIT} ${env.GIT_COMMIT}",
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Changed files:\n${changes}"
+
+                    env.BUILD_DEBUG = "false"
+                    env.BUILD_MONGODB = "false"
+
+                    if (changes.contains("debug/")) {
+                        env.BUILD_DEBUG = "true"
                     }
 
-                    env.FULL_IMAGE_NAME = "${DOCKERHUB_USERNAME}/${IMAGE_NAME}"
+                    if (changes.contains("mongodb/")) {
+                        env.BUILD_MONGODB = "true"
+                    }
 
-                    echo "APP_TYPE: ${params.APP_TYPE}"
-                    echo "IMAGE_NAME: ${IMAGE_NAME}"
-                    echo "DOCKERFILE: ${DOCKERFILE_PATH}"
+                    echo "BUILD_DEBUG: ${env.BUILD_DEBUG}"
+                    echo "BUILD_MONGODB: ${env.BUILD_MONGODB}"
                 }
             }
         }
 
-        stage('Debug Build Context') {
-            steps {
-                sh "ls -R ${BUILD_CONTEXT}"
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                sh """
-                docker build --no-cache \
-                -t ${FULL_IMAGE_NAME}:${BUILD_NUMBER} \
-                -f ${DOCKERFILE_PATH} \
-                ${BUILD_CONTEXT}
-                """
-            }
-        }
-
-        stage('Login to Docker Hub') {
+        stage('Docker Login') {
             steps {
                 withCredentials([usernamePassword(
-                    credentialsId: 'docker',
-                    usernameVariable: 'USER',
-                    passwordVariable: 'PASS'
+                    credentialsId: "${env.DOCKERHUB_CREDENTIALS}",
+                    usernameVariable: 'USERNAME',
+                    passwordVariable: 'PASSWORD'
                 )]) {
-                    sh "echo $PASS | docker login -u $USER --password-stdin"
+                    sh "echo $PASSWORD | docker login -u $USERNAME --password-stdin"
                 }
             }
         }
 
-        stage('Push Image') {
+        stage('Build & Push Debug Image') {
+            when {
+                expression { env.BUILD_DEBUG == "true" }
+            }
             steps {
-                sh "docker push ${FULL_IMAGE_NAME}:${BUILD_NUMBER}"
+                script {
+                    sh """
+                        docker build -t ${DOCKERHUB_USERNAME}/debug:${IMAGE_TAG} ./debug
+                        docker push ${DOCKERHUB_USERNAME}/debug:${IMAGE_TAG}
+                    """
+                }
             }
         }
 
-        stage('Run Container') {
+        stage('Build & Push MongoDB Image') {
+            when {
+                expression { env.BUILD_MONGODB == "true" }
+            }
             steps {
-                sh """
-                docker stop ${CONTAINER_NAME} || true
-                docker rm ${CONTAINER_NAME} || true
-
-                docker run -d --name ${CONTAINER_NAME} \
-                ${FULL_IMAGE_NAME}:${BUILD_NUMBER}
-                """
+                script {
+                    sh """
+                        docker build -t ${DOCKERHUB_USERNAME}/mongodb:${IMAGE_TAG} ./mongodb
+                        docker push ${DOCKERHUB_USERNAME}/mongodb:${IMAGE_TAG}
+                    """
+                }
             }
         }
+    }
 
+    post {
+        always {
+            sh 'docker logout'
+        }
     }
 }
