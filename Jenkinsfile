@@ -46,6 +46,12 @@ pipeline {
             }
         }
 
+        stage('Debug Build Context') {
+            steps {
+                sh "ls -R ${BUILD_CONTEXT}"
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
                 sh """
