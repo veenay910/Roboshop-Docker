@@ -15,5 +15,5 @@ COPY *.js .
 ENV MONGO="true" \
     MONGO_URL="mongodb://10.100.164.153:27017/catalogue"
 
-# Start application
+# Start applications
 CMD ["node", "server.js"]
