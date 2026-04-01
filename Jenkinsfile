@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         DOCKERHUB_USERNAME = "veenay910"
-        DOCKERHUB_CREDENTIALS = "dockerhub-creds"  // Jenkins credentials ID
+        DOCKERHUB_CREDENTIALS = "docker"  // Jenkins credentials ID
         IMAGE_TAG = "latest"
     }
 
