@@ -1,5 +1,13 @@
 FROM almalinux:9
-RUN sudo dnf install -y telnet net-tools iputils
+
+# Install required packages
+RUN dnf install -y telnet net-tools iputils && dnf clean all
+
+# Create user
 RUN useradd roboshop
+
+# Switch to non-root user
 USER roboshop
+
+# Default command
 CMD ["sleep", "1003"]
