@@ -1,11 +1,6 @@
-FROM nginx:latest
-
-# Remove default static content
-RUN rm -rf /usr/share/nginx/html/*
+FROM nginx
+RUN rm -rf /usr/share/nginx/html/index.html
 RUN rm -rf /etc/nginx/nginx.conf
-
-# Replace nginx config
+RUN rm -rf /etc/nginx/conf.d/default.conf
 COPY nginx.conf /etc/nginx/nginx.conf
-
-# Copy frontend files
 COPY static /usr/share/nginx/html/
